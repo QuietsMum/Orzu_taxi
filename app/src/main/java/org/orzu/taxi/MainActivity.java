@@ -1,58 +1,64 @@
 package org.orzu.taxi;
 
 import androidx.appcompat.app.AppCompatActivity;
-
+import android.content.Context;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 
-import com.yandex.mapkit.Animation;
-import com.yandex.mapkit.MapKitFactory;
-import com.yandex.mapkit.geometry.Point;
-import com.yandex.mapkit.map.CameraPosition;
-import com.yandex.mapkit.mapview.MapView;
+import org.osmdroid.api.IMapController;
+import org.osmdroid.config.Configuration;
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
+import org.osmdroid.util.GeoPoint;
+import org.osmdroid.views.MapView;
 
 public class MainActivity extends AppCompatActivity {
-
-    private final String MAPKIT_API_KEY = "38c4c9bc-766a-4574-8088-18a4e7583a90";
-    private final Point TARGET_LOCATION = new Point(59.945933, 30.320045);
-    private final Point TARGET_LOCATION_ALMATY = new Point(43.25654, 76.92848);
-    private MapView mapView;
+    MapView map = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        /**
-         * Задайте API-ключ перед инициализацией MapKitFactory.
-         * Рекомендуется устанавливать ключ в методе Application.onCreate,
-         * но в данном примере он устанавливается в activity.
-         */
-        MapKitFactory.setApiKey(MAPKIT_API_KEY);
-        /**
-         * Инициализация библиотеки для загрузки необходимых нативных библиотек.
-         * Рекомендуется инициализировать библиотеку MapKit в методе Activity.onCreate
-         * Инициализация в методе Application.onCreate может привести к лишним вызовам и увеличенному использованию батареи.
-         */
-        MapKitFactory.initialize(this);
-        // Создание MapView.
         setContentView(R.layout.activity_main);
         super.onCreate(savedInstanceState);
-        mapView = (MapView)findViewById(R.id.mapview);
-        // Перемещение камеры в центр Санкт-Петербурга.
-        mapView.getMap().move(
-                new CameraPosition(TARGET_LOCATION_ALMATY, 14.0f, 0.0f, 0.0f),
-                new Animation(Animation.Type.SMOOTH, 5),
-                null);
+
+        //handle permissions first, before map is created. not depicted here
+
+        //load/initialize the osmdroid configuration, this can be done
+        Context ctx = getApplicationContext();
+        Configuration.getInstance().load(ctx, PreferenceManager.getDefaultSharedPreferences(ctx));
+        //setting this before the layout is inflated is a good idea
+        //it 'should' ensure that the map has a writable location for the map cache, even without permissions
+        //if no tiles are displayed, you can try overriding the cache path using Configuration.getInstance().setCachePath
+        //see also StorageUtils
+        //note, the load method also sets the HTTP User Agent to your application's package name, abusing osm's tile servers will get you banned based on this string
+
+        //inflate and create the map
+        setContentView(R.layout.activity_main);
+
+        map = (MapView) findViewById(R.id.map);
+        map.setTileSource(TileSourceFactory.MAPNIK);
+        map.setBuiltInZoomControls(true);
+        map.setMultiTouchControls(true);
+        IMapController mapController = map.getController();
+        mapController.setZoom(12.5);
+        GeoPoint startPoint = new GeoPoint(43.25654, 76.92848);
+        mapController.setCenter(startPoint);
     }
-    @Override
-    protected void onStop() {
-        // Вызов onStop нужно передавать инстансам MapView и MapKit.
-        mapView.onStop();
-        MapKitFactory.getInstance().onStop();
-        super.onStop();
+
+    public void onResume(){
+        super.onResume();
+        //this will refresh the osmdroid configuration on resuming.
+        //if you make changes to the configuration, use
+        //SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        //Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this));
+        map.onResume(); //needed for compass, my location overlays, v6.0.0 and up
     }
-    @Override
-    protected void onStart() {
-        // Вызов onStart нужно передавать инстансам MapView и MapKit.
-        super.onStart();
-        MapKitFactory.getInstance().onStart();
-        mapView.onStart();
+
+    public void onPause(){
+        super.onPause();
+        //this will refresh the osmdroid configuration on resuming.
+        //if you make changes to the configuration, use
+        //SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        //Configuration.getInstance().save(this, prefs);
+        map.onPause();  //needed for compass, my location overlays, v6.0.0 and up
     }
+
 }
